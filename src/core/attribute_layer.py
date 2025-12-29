@@ -1,41 +1,45 @@
 # core/attribute_layer.py
 
 """
-Attribute layer utilities.
+This file implements the Attribute Layer.
 
-The Attribute Layer groups rows *within* each category based on
+The Attribute Layer groups rows within each category based on
 their attribute sparsity patterns (which columns are populated), and
 produces human-readable names for each attribute-based cluster.
 
 Public API used by the hierarchy engine:
 
-    assign_all_subclusters(df, random_state=42) -> pd.DataFrame
-        Returns a copy of df with an integer "category_subcluster"
+    assign_all_clusters(df, random_state=42) -> pd.DataFrame
+        Returns a copy of df with an integer "attribute_cluster"
         column indicating the attribute-layer cluster id for each row.
 
-    make_subcluster_names_tfidf(df) -> (dict, pd.DataFrame)
+    make_cluster_names(df) -> (dict, pd.DataFrame)
         Returns (cluster_name_map, df_with_names) where
-        "category_subcluster_name" is added to the dataframe.
+        "attribute_cluster_name" is added to the dataframe.
 """
 
+# Type hints
 from __future__ import annotations
-
 from typing import List, Tuple, Dict
 
+# External dependencies
 import numpy as np
 import pandas as pd
+
+# Sklearn dependencies
 from sklearn.decomposition import TruncatedSVD
 from sklearn.cluster import KMeans
 
 
 # ------------------------------------------------------------
-# Column selection helpers
+# Column selection helper
 # ------------------------------------------------------------
 
+# Columns to exclude from attribute consideration
 _METADATA_COLS = {
     "category_name",
-    "category_subcluster",
-    "category_subcluster_name",
+    "category_cluster",
+    "category_cluster_name",
     "attribute_cluster_id",
     "attribute_cluster_name",
     "level_0_id",
@@ -44,8 +48,7 @@ _METADATA_COLS = {
     "level_1_name",
 }
 
-
-
+# Function to select attribute columns for clustering
 def _select_attribute_columns(
     df: pd.DataFrame,
     extra_excluded_cols: list[str] | None = None,
@@ -56,6 +59,18 @@ def _select_attribute_columns(
     We treat any non-all-null column that is not obviously part of the
     hierarchy metadata as an attribute candidate, and also allow the caller
     to explicitly exclude additional columns via `extra_excluded_cols`.
+
+    Parameters
+    ----------
+    df :
+        Primary DataFrame object for use in hierarchy generation
+    extra_excluded_cols :
+        Columns to exclude from clustering
+
+    Returns
+    ------- 
+    List[str] :
+        An list of column names to be used as attribute columns
     """
     excluded = set(_METADATA_COLS)
     if extra_excluded_cols:
@@ -68,8 +83,7 @@ def _select_attribute_columns(
         # Skip index-like or trivial columns
         if str(col).lower() in {"index", "id"}:
             continue
-        series = df[col]
-        if series.isna().all():
+        if df[col].isna().all():
             continue
         cols.append(col)
     return cols
@@ -79,7 +93,7 @@ def _select_attribute_columns(
 # Core sparsity-based clustering per category
 # ------------------------------------------------------------
 
-def _cluster_products_within_category(
+def _cluster_products_within_category_sparsity(
     cat_df: pd.DataFrame,
     attr_cols: List[str],
     random_state: int = 42,
@@ -170,12 +184,19 @@ def _cluster_products_within_category_value(
     Cluster products within a single category using attribute VALUES
     (not just presence/absence).
 
-    Strategy:
-        - For each attribute column:
-            - numeric → use as-is (fill NA with median)
-            - non-numeric → factorize into integer codes
-        - Stack these columns into a numeric matrix
-        - Apply KMeans with the same sqrt(n) heuristic for k
+    Parameters
+    ----------
+    cat_df :
+        Subset of the dataframe containing only rows for a single category.
+    attr_cols :
+        Columns to treat as attributes.
+    random_state :
+        Seed for KMeans and SVD.
+
+    Returns
+    -------
+    np.ndarray
+        An array of integer labels (cluster ids) with length len(cat_df).
     """
     if not attr_cols or cat_df.empty:
         return np.zeros(len(cat_df), dtype=int)
@@ -241,10 +262,10 @@ def _cluster_products_within_category_value(
 
 
 # ------------------------------------------------------------
-# Public: assign_all_subclusters
+# Public: assign_all_clusters
 # ------------------------------------------------------------
 
-def assign_all_subclusters(
+def assign_all_clusters(
     df: pd.DataFrame,
     random_state: int = 42,
     extra_excluded_cols: list[str] | None = None,
@@ -259,7 +280,7 @@ def assign_all_subclusters(
         - 'sparsity': attribute sparsity patterns (which columns are present)
         - 'value':    attribute values (numeric + factorized categorical)
 
-    and assign an integer `category_subcluster` id (0..K-1 for that category).
+    and assign an integer `attribute_cluster` id (0..K-1 for that category).
 
     Parameters
     ----------
@@ -272,6 +293,11 @@ def assign_all_subclusters(
         (in addition to the built-in metadata exclusions).
     method :
         'sparsity' or 'value'.
+
+    Returns 
+    -------
+    pd.DataFrame :
+        A dataframe of the original dataset with cluster assignments as integers, and a shape of the original dataset plus an additional column.
     """
     if "category_name" not in df.columns:
         raise ValueError("Expected column 'category_name' in dataframe.")
@@ -291,7 +317,7 @@ def assign_all_subclusters(
                 random_state=random_state,
             )
         else:
-            labels = _cluster_products_within_category(
+            labels = _cluster_products_within_category_sparsity(
                 cat_df,
                 attr_cols,
                 random_state=random_state,
@@ -299,16 +325,16 @@ def assign_all_subclusters(
 
         all_labels[cat_df.index.to_numpy()] = labels
 
-    df_out["category_subcluster"] = all_labels
+    df_out["attribute_cluster"] = all_labels
     return df_out
 
 
 
 # ------------------------------------------------------------
-# Public: make_subcluster_names_tfidf
+# Public: make_cluster_names
 # ------------------------------------------------------------
 
-def make_subcluster_names_tfidf(
+def make_cluster_names(
     df: pd.DataFrame,
     purity_threshold: float = 0.5,
     extra_excluded_cols: list[str] | None = None,
@@ -316,7 +342,7 @@ def make_subcluster_names_tfidf(
     """
     Compute human-readable names for attribute-layer clusters.
 
-    For each (category_name, category_subcluster) group, we scan the
+    For each (category_name, category_cluster) group, we scan the
     attribute columns and look for columns whose values are relatively
     pure within the cluster (most rows share the same non-null value).
 
@@ -329,37 +355,42 @@ def make_subcluster_names_tfidf(
     Parameters
     ----------
     df :
-        Input dataframe. Must contain 'category_name' and 'category_subcluster'.
+        Input dataframe. Must contain 'category_name' and 'attribute_cluster'.
     purity_threshold :
         Minimum fraction of rows within a cluster that must share the
         same value in an attribute column for that (column, value)
         descriptor to be used in the label.
     extra_excluded_cols :
         Optional list of columns to exclude from naming consideration.
+
+    Returns
+    -------
+    Tuple[Dict[tuple, str], pd.DataFrame] :
+        Category-cluster pair mapped to the corresponding cluster label, coupled with the resulting dataframe that includes the category-cluster name.
     """
-    if "category_name" not in df.columns or "category_subcluster" not in df.columns:
-        raise ValueError("Expected 'category_name' and 'category_subcluster' columns.")
+    if "category_name" not in df.columns or "attribute_cluster" not in df.columns:
+        raise ValueError("Expected 'category_name' and 'attribute_cluster' columns.")
 
     df_out = df.copy()
     attr_cols = _select_attribute_columns(df_out, extra_excluded_cols=extra_excluded_cols)
 
     cluster_name_map: Dict[tuple, str] = {}
-    df_out["category_subcluster_name"] = ""
+    df_out["attribute_cluster_name"] = ""
 
     if not attr_cols:
         # Degenerate: just use category name + generic suffix
         for (cat, cid), idx in df_out.groupby(
-            ["category_name", "category_subcluster"]
+            ["category_name", "attribute_cluster"]
         ).groups.items():
             label = f"{cat} – misc"
             cluster_name_map[(cat, cid)] = label
-            df_out.loc[idx, "category_subcluster_name"] = label
+            df_out.loc[idx, "attribute_cluster_name"] = label
         return cluster_name_map, df_out
 
     # Treat these string values as "missing" when naming
     nan_like = {"nan", "none", "null", "na", "n/a"}
 
-    for (cat, cid), grp in df_out.groupby(["category_name", "category_subcluster"]):
+    for (cat, cid), grp in df_out.groupby(["category_name", "attribute_cluster"]):
         n_rows = len(grp)
         descriptors: List[str] = []
 
@@ -397,7 +428,7 @@ def make_subcluster_names_tfidf(
             label = f"{cat} – misc"
 
         cluster_name_map[(cat, cid)] = label
-        df_out.loc[grp.index, "category_subcluster_name"] = label
+        df_out.loc[grp.index, "attribute_cluster_name"] = label
 
     return cluster_name_map, df_out
 
