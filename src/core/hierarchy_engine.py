@@ -6,12 +6,8 @@ from typing import Dict, Optional, List
 import pandas as pd
 import numpy as np
 
-from .semantic_layer import (
-    build_semantic_layer,
-    semantic_relabel,
-    split_cluster_embeddings,
-)
-from .attribute_layer import assign_all_subclusters, make_subcluster_names_tfidf
+from .semantic_layer import build_semantic_layer
+from .attribute_layer import assign_all_clusters, make_cluster_names
 from .category_layer import ensure_or_generate_category_name
 
 class HierarchyEngine:
@@ -362,7 +358,7 @@ class HierarchyEngine:
         method = getattr(self, "_attribute_method", "sparsity")
 
         # 1) Assign subclusters within each category (attribute-based)
-        df = assign_all_subclusters(
+        df = assign_all_clusters(
             df,
             random_state=42,
             extra_excluded_cols=excluded,
@@ -370,7 +366,7 @@ class HierarchyEngine:
         )
 
         # 2) Name subclusters
-        _, df_named = make_subcluster_names_tfidf(
+        _, df_named = make_cluster_names(
             df,
             extra_excluded_cols=excluded,
         )

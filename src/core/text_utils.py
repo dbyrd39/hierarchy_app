@@ -11,14 +11,16 @@ This module provides:
     - TF-IDF–based cluster labeling that is robust to sparse input
 """
 
+# Type hints
 from __future__ import annotations
-
-from collections import Counter
 from typing import List, Sequence
 
+# External dependencies
 import numpy as np
 import regex as re
-from nltk.stem import WordNetLemmatizer
+from collections import Counter
+
+# Sklearn dependencies
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sentence_transformers import SentenceTransformer
 
@@ -29,8 +31,7 @@ from sentence_transformers import SentenceTransformer
 
 _sentence_model: SentenceTransformer | None = None
 
-# Shared lemmatizer (used by naming_utils and potentially others)
-lemmatizer = WordNetLemmatizer()
+# lemmatizer = WordNetLemmatizer()
 
 
 def _get_sentence_model(model_name: str = "all-MiniLM-L6-v2") -> SentenceTransformer:
