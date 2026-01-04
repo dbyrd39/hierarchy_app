@@ -1,21 +1,102 @@
 # core/hierarchy_engine.py
 
+"""
+This file implements the Hierarchy Engine, the engine responsible for
+implementing layer-specific logic within the application. 
+
+Currently, the engine builds a hierarchy of the form:
+
+    Root (Semantic Layer)
+        → Level 1 (Semantic Layer)
+            → Level 2 (Category Layer)
+                → Level 3 (Attribute Layer, cached)
+
+Future versions of this project will allow greater flexibility,
+such as specifying desired number of layers and the type of layer
+for each level.
+
+It also supports interactive operations such as renaming clusters,
+reassigning labels, merging and splitting semantic clusters, and
+re-running clustering logic from scratch. These capabilities are designed
+to support both backend pipelines and UI-driven editing workflows.
+
+Public API used by the hierarchy engine consumer (e.g., UI or pipeline):
+
+    HierarchyEngine(
+        df,
+        category_col,
+        attribute_method="sparsity",
+        attribute_excluded_cols=None
+    )
+        Initializes the hierarchy engine and builds semantic layers.
+
+    get_semantic_layer(level) -> pd.DataFrame
+        Returns a dataframe describing the requested semantic layer
+        (level 0 or level 1) with columns: label, id, name.
+
+    apply_semantic_changes(level, rename_map, reassignment_map) -> None
+        Applies user-driven renames and label reassignments to a semantic
+        layer and propagates changes through dependent layers.
+
+    semantic_recluster(level) -> None
+        Rebuilds semantic clustering from scratch for the specified level.
+
+    merge_semantic_clusters(level, from_cluster, to_cluster) -> None
+        Merges one semantic cluster into another.
+
+    split_semantic_cluster(level, from_cluster, labels_to_move) -> None
+        Manually splits a semantic cluster by moving selected labels into
+        a new cluster.
+
+    get_attribute_layer() -> pd.DataFrame
+        Returns the attribute-layer view with cluster IDs and names,
+        computing it lazily if necessary.
+
+    attribute_recluster(method=None) -> None
+        Re-runs attribute-based clustering using the specified method.
+
+    apply_attribute_changes(rename_map, reassignment_map) -> None
+        Applies user edits to attribute cluster names and assignments.
+
+    get_hierarchy_df() -> pd.DataFrame
+        Returns the full hierarchy dataframe with all active layers.
+
+Internal helpers:
+
+    _build_semantic_layers() -> None
+        Constructs semantic layers in sequence.
+
+    _extract_semantic_layer(level) -> pd.DataFrame
+        Extracts a compact label/id/name table for a semantic layer.
+
+    _apply_layer_back_to_hierarchy(level, df_layer) -> None
+        Writes updated semantic layer assignments back into the hierarchy.
+
+    _cleanup_semantic_layer_ids(df_layer) -> pd.DataFrame
+        Normalizes cluster IDs to a contiguous 1..K range.
+
+    _build_attribute_layer() -> None
+        Computes and caches attribute-based clustering and naming.
+"""
+
+# Type hints
 from __future__ import annotations
 from typing import Dict, Optional, List
 
+# External dependencies
 import pandas as pd
-import numpy as np
 
+# Internal dependencies
 from .semantic_layer import build_semantic_layer
 from .attribute_layer import assign_all_clusters, make_cluster_names
 from .category_layer import ensure_or_generate_category_name
 
 class HierarchyEngine:
     """
-    Unified BL3 backend engine.
+    Unified backend engine.
 
     Responsibilities:
-        - Build Category → Semantic Layer 1 → Semantic Layer 0
+        - Build current hierarchy
         - Support rename / reassign / merge / split operations
         - Maintain a consistent hierarchy dataframe
         - Provide semantic layers to the UI
@@ -46,8 +127,8 @@ class HierarchyEngine:
         self._hier_df: pd.DataFrame = df
 
         # Cached semantic and attribute-layer views
-        self._semantic_layer_1: pd.DataFrame | None = None
         self._semantic_layer_0: pd.DataFrame | None = None
+        self._semantic_layer_1: pd.DataFrame | None = None
         self._attribute_layer_df: pd.DataFrame | None = None
 
         # Attribute layer configuration
@@ -348,8 +429,8 @@ class HierarchyEngine:
         Build attribute-based clusters using the attribute_layer utilities.
 
         We:
-        - Run assign_all_subclusters to compute `category_subcluster`
-        - Use make_subcluster_names_tfidf to generate names
+        - Run assign_all_clusters to compute `category_cluster`
+        - Use make_cluster_names to generate names
         - Expose them as attribute_cluster_id / attribute_cluster_name
         """
         df = self._hier_df.copy()
@@ -357,7 +438,7 @@ class HierarchyEngine:
         excluded = getattr(self, "_attribute_excluded_cols", None)
         method = getattr(self, "_attribute_method", "sparsity")
 
-        # 1) Assign subclusters within each category (attribute-based)
+        # 1) Assign clusters within each category (attribute-based)
         df = assign_all_clusters(
             df,
             random_state=42,
@@ -365,15 +446,15 @@ class HierarchyEngine:
             method=method,
         )
 
-        # 2) Name subclusters
+        # 2) Name clusters
         _, df_named = make_cluster_names(
             df,
             extra_excluded_cols=excluded,
         )
 
-        # 3) Expose subcluster info as attribute-layer columns
-        df_named["attribute_cluster_id"] = df_named["category_subcluster"]
-        df_named["attribute_cluster_name"] = df_named["category_subcluster_name"]
+        # 3) Expose cluster info as attribute-layer columns
+        df_named["attribute_cluster_id"] = df_named["category_cluster"]
+        df_named["attribute_cluster_name"] = df_named["category_cluster_name"]
 
         # Cache full hierarchy + attribute-layer view
         self._hier_df = df_named
