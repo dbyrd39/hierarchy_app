@@ -22,11 +22,11 @@ NUM_ATTRS = 195
 NUM_CATEGORIES = 200
 RANDOM_SEED = 42
 
-GLOBAL_PRESENCE_PROB = 0.20  # improved sparsity (20% non-null)
+GLOBAL_PRESENCE_PROB = 0.20  # sparsity (20% non-null)
 
 
 # ---------------------------------------------------------------------
-# CATEGORY LIST (200 meaningful names)
+# CATEGORY LIST
 # ---------------------------------------------------------------------
 
 def build_category_list(n: int) -> List[str]:
@@ -433,7 +433,7 @@ if __name__ == "__main__":
     print(df.head())
     print(df.shape)
 
-    out = "synthetic_product_master_200_categories_structured.csv"
+    out = "raw_data.csv"
     df.to_csv(out, index=False)
     print("Saved:", out)
 
