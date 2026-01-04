@@ -453,8 +453,8 @@ class HierarchyEngine:
         )
 
         # 3) Expose cluster info as attribute-layer columns
-        df_named["attribute_cluster_id"] = df_named["category_cluster"]
-        df_named["attribute_cluster_name"] = df_named["category_cluster_name"]
+        df_named["attribute_cluster_id"] = df_named["attribute_cluster"]
+        df_named["attribute_cluster_name"] = df_named["attribute_cluster_name"]
 
         # Cache full hierarchy + attribute-layer view
         self._hier_df = df_named

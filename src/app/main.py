@@ -124,7 +124,7 @@ class HierarchyWizard:
         attribute_method: str = "sparsity",
     ):
         """
-        Creates a fresh HierarchyEngine instance using the redesigned backend.
+        Creates a fresh HierarchyEngine instance
         This engine performs all semantic and attribute-level clustering.
 
         - `category_col` may be None (auto-generate categories).
@@ -148,7 +148,7 @@ class HierarchyWizard:
 
     def render_sidebar(self):
         """Renders the left navigation panel."""
-        st.sidebar.title("📊 Product Hierarchy Wizard")
+        st.sidebar.title("📊 Hierarchy Wizard")
 
         menu_items = {
             "upload": "Step 1 — Upload Data",

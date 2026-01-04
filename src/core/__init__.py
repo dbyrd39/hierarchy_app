@@ -13,19 +13,11 @@ This package contains:
 
 from .hierarchy_engine import HierarchyEngine
 from .semantic_layer import (
-    build_semantic_layer,
-    semantic_relabel,
-)
-from .attribute_layer import (
-    assign_all_subclusters,
-    make_subcluster_names_tfidf,
+    build_semantic_layer
 )
 from .category_layer import (
-    ensure_category_name_column,
-    add_category_ids,
-    summarize_categories,
+    ensure_category_name_column
 )
-from .naming_utils import compute_auto_name_for_category_list
 from .text_utils import (
     normalize_text,
     tokenize,
