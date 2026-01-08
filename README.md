@@ -1,4 +1,4 @@
-# Product Hierarchy Builder (Streamlit App)
+# Hierarchy Builder (Streamlit App)
 
 This project is an end-to-end **hierarchy builder** designed for extremely wide and sparse master data (e.g., 20,000 rows × 8,000+ columns).  
 It cleans data, generates category names, builds semantic and attribute-based clusters, and provides an interactive Streamlit interface for exploring and exporting enriched hierarchies. Example uses include product master data, customer master data, athlete performance data, text data, etc.
